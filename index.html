@@ -3523,9 +3523,8 @@ function getSettledThisMonth() {
 
 function calcDealProfit(income, payout, dealNumThisMonth) {
   const rate = getCommissionRate(dealNumThisMonth);
-  // (Income - Payout - $850 overhead) × split rate = your take
-  // If negative, wear the full loss with no split
-  const gross = income - payout - FIXED_EXPENSES;
+  // Overhead ($850) is monthly — handled at the profit tab level not per deal
+  const gross = income - payout;
   const myShare = gross >= 0 ? gross * rate : gross;
   return { rate, gross, myShare };
 }
@@ -3558,10 +3557,9 @@ function updateSettlementPreview() {
   preview.innerHTML = `
     <div class="settlement-row"><span>Finance Income</span><span class="${income > 0 ? 'pos' : ''}">${income > 0 ? '$' + income.toFixed(2) : '—'}</span></div>
     <div class="settlement-row"><span>Referral Payout</span><span class="${payout > 0 ? 'neg' : ''}">${payout > 0 ? '− $' + payout.toFixed(2) : '—'}</span></div>
-    <div class="settlement-row"><span>Monthly overhead (system + Equifax)</span><span class="neg">− $${FIXED_EXPENSES.toFixed(2)}</span></div>
-    <div class="settlement-row"><span>Gross (before split)</span><span class="${gross >= 0 ? 'pos' : 'neg'}">$${gross.toFixed(2)}</span></div>
+    <div class="settlement-row"><span>Gross this deal</span><span class="${gross >= 0 ? 'pos' : 'neg'}">$${gross.toFixed(2)}</span></div>
     <div class="settlement-row"><span>${gross >= 0 ? `Your ${Math.round(rate*100)}% split (deal #${dealNum} this month)` : 'Your loss (no split on negatives)'}</span><span class="${myShare >= 0 ? 'pos' : 'neg'}">$${myShare.toFixed(2)}</span></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Lead cost expensed separately when lead was added</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">$850 overhead &amp; lead costs tracked in Profit tab</div>
   `;
 }
 
@@ -3731,10 +3729,14 @@ function renderProfit() {
 
   const totalIncome    = periodSettled.reduce((s, d) => s + (d.income || 0), 0);
   const totalPayout    = periodSettled.reduce((s, d) => s + (d.payout || 0), 0);
-  const totalDealShare = periodSettled.reduce((s, d) => s + (d.myShare || 0), 0);
-  const totalOverhead  = periodSettled.length * FIXED_EXPENSES;
 
-  const totalMyShare = totalDealShare - totalLeadCost;
+  // $850 monthly overhead — once per month regardless of deals
+  const monthlyOverhead = FIXED_EXPENSES;
+
+  // Gross before split = income - payout - monthly overhead - lead costs
+  const totalGross = totalIncome - totalPayout - monthlyOverhead - totalLeadCost;
+  // Apply split to the gross — if negative, wear full loss
+  const totalMyShare = totalGross >= 0 ? totalGross * rate : totalGross;
   const isGreen = totalMyShare > 0;
   const isNeutral = totalMyShare === 0;
   const rate = getCommissionRate(periodSettled.length);
@@ -3751,7 +3753,7 @@ function renderProfit() {
     <div class="profit-hero">
       <div class="profit-hero-label">${periodLabel} — Your Take</div>
       <div class="profit-hero-number ${isGreen ? 'green' : isNeutral ? '' : 'red'}">$${fmt(totalMyShare)}</div>
-      <div class="profit-hero-sub">${periodSettled.length} deal${periodSettled.length !== 1 ? 's' : ''} settled this month</div>
+      <div class="profit-hero-sub">${periodSettled.length} deal${periodSettled.length !== 1 ? 's' : ''} settled · ${Math.round(rate*100)}% split tier</div>
       <div class="profit-tier-badge">
         🏆 ${Math.round(rate*100)}% commission split
         ${nextTier ? `· ${nextTier.at - periodSettled.length} more deal${nextTier.at - periodSettled.length !== 1 ? 's' : ''} to ${nextTier.next}` : '· Maximum tier reached!'}
@@ -3761,11 +3763,11 @@ function renderProfit() {
     <div class="profit-breakdown">
       <div class="profit-breakdown-row"><span class="lbl">Finance Income</span><span class="${totalIncome > 0 ? 'val-pos' : ''}" style="${totalIncome === 0 ? 'color:var(--text3)' : ''}">$${fmt(totalIncome)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Referral Payouts</span><span class="val-neg">− $${fmt(totalPayout)}</span></div>
-      <div class="profit-breakdown-row"><span class="lbl">Overhead ($850 × ${periodSettled.length} deal${periodSettled.length !== 1 ? 's' : ''})</span><span class="val-neg">− $${fmt(totalOverhead)}</span></div>
-      <div class="profit-breakdown-row"><span class="lbl">Deal subtotal (${Math.round(rate*100)}% split)</span><span class="${totalDealShare >= 0 ? 'val-pos' : 'val-neg'}">$${fmt(totalDealShare)}</span></div>
+      <div class="profit-breakdown-row"><span class="lbl">Monthly Overhead (system + Equifax)</span><span class="val-neg">− $${fmt(monthlyOverhead)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Lead Costs (${totalLeadCount} lead${totalLeadCount !== 1 ? 's' : ''})</span><span class="val-neg">− $${fmt(totalLeadCost)}</span></div>
+      <div class="profit-breakdown-row"><span class="lbl">Gross (before split)</span><span class="${totalGross >= 0 ? 'val-pos' : 'val-neg'}">$${fmt(totalGross)}</span></div>
       <div class="profit-breakdown-row">
-        <span class="lbl">${isGreen ? 'Your profit' : isNeutral ? 'Break even' : 'Your loss'}</span>
+        <span class="lbl">${totalGross >= 0 ? `Your ${Math.round(rate*100)}% split` : 'Your loss (no split on negatives)'}</span>
         <span class="${isGreen ? 'val-total-pos' : isNeutral ? '' : 'val-total-neg'}">$${fmt(totalMyShare)}</span>
       </div>
     </div>
@@ -3779,7 +3781,7 @@ function renderProfit() {
             <div class="profit-deal-name">${d.name}</div>
             <div class="profit-deal-meta">${d.vehicle || ''} · ${d.leadType} lead · ${new Date(d.settledAt).toLocaleDateString('en-AU')}</div>
           </div>
-          <div class="profit-deal-amount ${d.myShare >= 0 ? 'pos' : 'neg'}">$${fmt(d.myShare)}</div>
+          <div class="profit-deal-amount ${d.income >= 0 ? 'pos' : 'neg'}">$${fmt(d.income || 0)}</div>
         </div>
       `).join('')}
     </div>` : `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No settled deals this period — settle a deal to start tracking profit.</div>`}
