@@ -1292,6 +1292,7 @@ header {
         <div class="sync-dot" id="sync-dot"></div>
         <span id="sync-label">Not connected</span>
       </div>
+      <button class="btn btn-ghost btn-sm" onclick="loadFromNotion()" title="Refresh from Notion">↻ Sync</button>
       <button class="btn btn-ghost btn-sm" onclick="openArchive()">📁 Settled Archive</button>
       <button class="btn btn-ghost btn-sm" onclick="openGraveyard()">💀 Graveyard</button>
       <button class="btn btn-ghost btn-sm" onclick="openStats()">📊 Stats</button>
@@ -1872,21 +1873,33 @@ async function notionFetch(method, path, body) {
   return res.json();
 }
 
-async function loadFromNotion() {
+async function loadFromNotion(silent) {
   if (demoMode) return;
-  setSyncing('Loading...');
+  if (!silent) setSyncing('Loading...');
   try {
     const dbId = formatDbId(notionDbId);
     const res = await notionFetch('POST', `/databases/${dbId}/query`, { page_size: 100 });
-    clients = res.results.map(pageToClient).filter(Boolean);
-    // Load settled and graveyard in parallel
+    const newClients = res.results.map(pageToClient).filter(Boolean);
+
+    // Only re-render if data has actually changed
+    const newHash = JSON.stringify(newClients.map(c => c.id + c.status + c.lastContact + (c.activity?.length || 0)));
+    const oldHash = JSON.stringify(clients.map(c => c.id + c.status + c.lastContact + (c.activity?.length || 0)));
+
+    if (newHash !== oldHash) {
+      clients = newClients;
+      // Only re-render if not dragging or typing
+      if (!dragClient && !touchGhost && !document.activeElement?.classList.contains('card-quick-note-input')) {
+        renderBoard();
+        updateClientCount();
+        renderQMB();
+      }
+    }
+
     await Promise.all([loadSettledFromNotion(), loadGraveyardFromNotion()]);
-    renderBoard();
-    updateClientCount();
     setSynced('Synced');
   } catch(e) {
     setSyncError('Sync failed');
-    console.error(e);
+    if (!silent) console.error(e);
   }
 }
 
@@ -2028,8 +2041,12 @@ function startApp() {
   renderNotifBar();
   checkTimers();
   setInterval(checkTimers, 60000);
-  // Refresh board every 5 min so aging colours stay live
+  // Refresh aging colours every 5 mins locally
   setInterval(() => renderBoard(), 300000);
+  // Background sync from Notion every 5 seconds (silent, only re-renders if changed)
+  if (!demoMode) {
+    setInterval(() => loadFromNotion(true), 5000);
+  }
 }
 
 // ═══════════════════════════════════════════
