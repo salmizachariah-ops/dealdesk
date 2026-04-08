@@ -3732,6 +3732,9 @@ function renderProfit() {
 
   // $850 monthly overhead — once per month regardless of deals
   const monthlyOverhead = FIXED_EXPENSES;
+  const rate = getCommissionRate(periodSettled.length);
+  const nextTierMap = { 0.60: { at: 8, next: '65%' }, 0.65: { at: 12, next: '70%' }, 0.70: { at: 16, next: '75%' }, 0.75: null };
+  const nextTier = nextTierMap[rate];
 
   // Gross before split = income - payout - monthly overhead - lead costs
   const totalGross = totalIncome - totalPayout - monthlyOverhead - totalLeadCost;
@@ -3739,9 +3742,6 @@ function renderProfit() {
   const totalMyShare = totalGross >= 0 ? totalGross * rate : totalGross;
   const isGreen = totalMyShare > 0;
   const isNeutral = totalMyShare === 0;
-  const rate = getCommissionRate(periodSettled.length);
-  const nextTierMap = { 0.60: { at: 8, next: '65%' }, 0.65: { at: 12, next: '70%' }, 0.70: { at: 16, next: '75%' }, 0.75: null };
-  const nextTier = nextTierMap[rate];
 
   const periodLabel = statsPeriod === 'all' ? 'All Time'
     : statsPeriod === 'week' ? (statsOffset === 0 ? 'This Week' : start.toLocaleDateString('en-AU', { day:'numeric', month:'short' }))
