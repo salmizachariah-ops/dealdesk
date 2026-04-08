@@ -2547,8 +2547,13 @@ function moveClient(clientId, newStatus, skipRender) {
   showToast(`✓ ${client.firstName} moved to ${toLabel}`);
 
   // Trigger settlement popup
+  // Only trigger settlement popup if this client hasn't been settled before
   if (newStatus === 'settled') {
-    setTimeout(() => openSettlementModal(client.id), 400);
+    const allSettled = JSON.parse(localStorage.getItem('dealdesk_settled') || '[]');
+    const alreadySettled = allSettled.some(s => s.clientId === client.id);
+    if (!alreadySettled) {
+      setTimeout(() => openSettlementModal(client.id), 400);
+    }
   }
 }
 
