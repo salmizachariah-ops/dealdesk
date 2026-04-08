@@ -1307,6 +1307,11 @@ header {
     <input type="text" class="form-input" id="qa-name" placeholder="Client name" style="max-width:180px">
     <input type="text" class="form-input" id="qa-vehicle" placeholder="Vehicle" style="max-width:180px">
     <input type="tel" class="form-input" id="qa-phone" placeholder="Mobile" style="max-width:150px">
+    <select class="form-input" id="qa-leadtype" style="max-width:180px">
+      <option value="consumer">Consumer — $93.50</option>
+      <option value="commercial">Commercial — $88</option>
+      <option value="free">Free Lead</option>
+    </select>
     <select class="form-input" id="qa-status" style="max-width:200px"></select>
     <button class="btn btn-primary btn-sm" onclick="quickAddClient()">Add</button>
     <button class="btn btn-ghost btn-sm" onclick="toggleQuickAdd()">Cancel</button>
@@ -2798,7 +2803,9 @@ function saveClient() {
     };
     clients.push(newClient);
     saveToNotion(newClient);
-    showToast(`✓ ${firstName} added`);
+    logLeadExpense(newClient);
+    const leadCost = LEAD_COSTS[newClient.leadType] || 0;
+    showToast(`✓ ${firstName} added${leadCost > 0 ? ` · $${leadCost.toFixed(2)} lead cost logged` : ''}`);
   }
 
   closeModal('client-modal');
@@ -2832,6 +2839,7 @@ function quickAddClient() {
     loanAmount: '',
     lender: '',
     financeType: 'Car Finance',
+    leadType: document.getElementById('qa-leadtype').value,
     status: document.getElementById('qa-status').value,
     reminder: null,
     notes: '',
@@ -2841,9 +2849,11 @@ function quickAddClient() {
   };
   clients.push(newClient);
   saveToNotion(newClient);
+  logLeadExpense(newClient);
   ['qa-name','qa-vehicle','qa-phone'].forEach(id => document.getElementById(id).value = '');
   renderBoard(); updateClientCount(); renderQMB();
-  showToast(`✓ ${newClient.firstName} added`);
+  const leadCost = LEAD_COSTS[newClient.leadType] || 0;
+  showToast(`✓ ${newClient.firstName} added${leadCost > 0 ? ` · $${leadCost.toFixed(2)} lead cost logged` : ''}`);
 }
 
 // ═══════════════════════════════════════════
@@ -3465,6 +3475,28 @@ async function loadGraveyardFromNotion() {
 const LEAD_COSTS = { consumer: 93.5, commercial: 88, free: 0 };
 const FIXED_EXPENSES = 850;
 
+function logLeadExpense(client) {
+  const leadCost = LEAD_COSTS[client.leadType] || 0;
+  if (leadCost === 0) return; // free leads don't cost anything
+  const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
+  expenses.push({
+    clientId: client.id,
+    name: `${client.firstName} ${client.lastName}`,
+    leadType: client.leadType,
+    amount: leadCost,
+    addedAt: new Date().toISOString(),
+  });
+  localStorage.setItem('dealdesk_expenses', JSON.stringify(expenses));
+}
+
+function getLeadExpensesForPeriod(start, end) {
+  const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
+  return expenses.filter(e => {
+    const t = new Date(e.addedAt);
+    return t >= start && t < end;
+  });
+}
+
 function getCommissionRate(dealsSettledThisMonth) {
   if (dealsSettledThisMonth >= 16) return 0.75;
   if (dealsSettledThisMonth >= 12) return 0.70;
@@ -3489,12 +3521,11 @@ function getSettledThisMonth() {
     });
 }
 
-function calcDealProfit(income, payout, leadType, dealNumThisMonth) {
+function calcDealProfit(income, payout, dealNumThisMonth) {
   const rate = getCommissionRate(dealNumThisMonth);
-  const leadCost = LEAD_COSTS[leadType] || 93.5;
-  const gross = income - payout - leadCost; // $850 is monthly overhead, not per-deal
+  const gross = income - payout;
   const myShare = gross >= 0 ? gross * rate : gross;
-  return { rate, leadCost, gross, myShare };
+  return { rate, gross, myShare };
 }
 
 // ═══════════════════════════════════════════
@@ -3517,20 +3548,17 @@ function openSettlementModal(clientId) {
 function updateSettlementPreview() {
   const income = parseFloat(document.getElementById('s-income').value) || 0;
   const payout = parseFloat(document.getElementById('s-payout').value) || 0;
-  const client = clients.find(c => c.id === settlementClientId);
-  const leadType = client?.leadType || 'consumer';
   const settled = getSettledThisMonth();
   const dealNum = settled.length + 1;
-  const { rate, leadCost, gross, myShare } = calcDealProfit(income, payout, leadType, dealNum);
+  const { rate, gross, myShare } = calcDealProfit(income, payout, dealNum);
 
   const preview = document.getElementById('settlement-preview');
   preview.innerHTML = `
     <div class="settlement-row"><span>Finance Income</span><span class="${income > 0 ? 'pos' : ''}">${income > 0 ? '$' + income.toFixed(2) : '—'}</span></div>
     <div class="settlement-row"><span>Referral Payout</span><span class="${payout > 0 ? 'neg' : ''}">${payout > 0 ? '− $' + payout.toFixed(2) : '—'}</span></div>
-    <div class="settlement-row"><span>Lead Cost (${leadType})</span><span class="neg">− $${leadCost.toFixed(2)}</span></div>
     <div class="settlement-row"><span>Gross this deal</span><span class="${gross >= 0 ? 'pos' : 'neg'}">$${gross.toFixed(2)}</span></div>
     <div class="settlement-row"><span>${gross >= 0 ? `Your split (${Math.round(rate*100)}% — deal #${dealNum} this month)` : 'Your loss (no split on negatives)'}</span><span class="${myShare >= 0 ? 'pos' : 'neg'}">$${myShare.toFixed(2)}</span></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">$850 monthly overhead tracked separately in Profit tab</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Lead cost already expensed when lead was added · $850 monthly overhead in Profit tab</div>
   `;
 }
 
@@ -3542,16 +3570,16 @@ function confirmSettlement() {
 
   const settled = getSettledThisMonth();
   const dealNum = settled.length + 1;
-  const { rate, leadCost, gross, myShare } = calcDealProfit(income, payout, client.leadType || 'consumer', dealNum);
+  const { rate, gross, myShare } = calcDealProfit(income, payout, dealNum);
 
-  // Save to settled deals store
   const allSettled = JSON.parse(localStorage.getItem('dealdesk_settled') || '[]');
   allSettled.push({
     clientId: client.id,
     name: `${client.firstName} ${client.lastName}`,
     vehicle: client.vehicle,
     leadType: client.leadType || 'consumer',
-    income, payout, leadCost,
+    income, payout,
+    leadCost: 0, // already expensed on add
     expenses: 0,
     gross, myShare, rate,
     settledAt: new Date().toISOString(),
@@ -3692,8 +3720,12 @@ function renderProfit() {
   const { periodSettled } = getStatsData();
   const fmt = n => n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const { start, end } = getPeriodRange();
+  const leadExpenses = getLeadExpensesForPeriod(start, end);
+  const totalLeadCost = leadExpenses.reduce((s, e) => s + e.amount, 0);
+  const totalLeadCount = leadExpenses.length;
+
   const totalIncome   = periodSettled.reduce((s, d) => s + (d.income || 0), 0);
-  const totalLeadCost = periodSettled.reduce((s, d) => s + (d.leadCost || 0), 0);
   const totalPayout   = periodSettled.reduce((s, d) => s + (d.payout || 0), 0);
   const totalDealShare = periodSettled.reduce((s, d) => s + (d.myShare || 0), 0);
 
@@ -3701,14 +3733,13 @@ function renderProfit() {
   const monthlyOverhead = statsPeriod === 'all'
     ? FIXED_EXPENSES * getUniqueMonths(periodSettled)
     : FIXED_EXPENSES;
-  const totalMyShare = totalDealShare - monthlyOverhead;
+  const totalMyShare = totalDealShare - monthlyOverhead - totalLeadCost;
   const isGreen = totalMyShare > 0;
   const isNeutral = totalMyShare === 0;
   const rate = getCommissionRate(periodSettled.length);
   const nextTierMap = { 0.60: { at: 8, next: '65%' }, 0.65: { at: 12, next: '70%' }, 0.70: { at: 16, next: '75%' }, 0.75: null };
   const nextTier = nextTierMap[rate];
 
-  const { start } = getPeriodRange();
   const periodLabel = statsPeriod === 'all' ? 'All Time'
     : statsPeriod === 'week' ? (statsOffset === 0 ? 'This Week' : start.toLocaleDateString('en-AU', { day:'numeric', month:'short' }))
     : start.toLocaleDateString('en-AU', { month:'long', year:'numeric' });
@@ -3729,7 +3760,7 @@ function renderProfit() {
     <div class="profit-breakdown">
       <div class="profit-breakdown-row"><span class="lbl">Finance Income</span><span class="${totalIncome > 0 ? 'val-pos' : ''}" style="${totalIncome === 0 ? 'color:var(--text3)' : ''}">$${fmt(totalIncome)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Referral Payouts</span><span class="val-neg">− $${fmt(totalPayout)}</span></div>
-      <div class="profit-breakdown-row"><span class="lbl">Lead Costs</span><span class="val-neg">− $${fmt(totalLeadCost)}</span></div>
+      <div class="profit-breakdown-row"><span class="lbl">Lead Costs (${totalLeadCount} lead${totalLeadCount !== 1 ? 's' : ''})</span><span class="val-neg">− $${fmt(totalLeadCost)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Deal subtotal (${Math.round(rate*100)}% split)</span><span class="${totalDealShare >= 0 ? 'val-pos' : 'val-neg'}">$${fmt(totalDealShare)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Monthly overhead (system + Equifax)</span><span class="val-neg">− $${fmt(monthlyOverhead)}</span></div>
       <div class="profit-breakdown-row">
