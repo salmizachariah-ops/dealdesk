@@ -3523,7 +3523,9 @@ function getSettledThisMonth() {
 
 function calcDealProfit(income, payout, dealNumThisMonth) {
   const rate = getCommissionRate(dealNumThisMonth);
-  const gross = income - payout;
+  // (Income - Payout - $850 overhead) × split rate = your take
+  // If negative, wear the full loss with no split
+  const gross = income - payout - FIXED_EXPENSES;
   const myShare = gross >= 0 ? gross * rate : gross;
   return { rate, gross, myShare };
 }
@@ -3556,9 +3558,10 @@ function updateSettlementPreview() {
   preview.innerHTML = `
     <div class="settlement-row"><span>Finance Income</span><span class="${income > 0 ? 'pos' : ''}">${income > 0 ? '$' + income.toFixed(2) : '—'}</span></div>
     <div class="settlement-row"><span>Referral Payout</span><span class="${payout > 0 ? 'neg' : ''}">${payout > 0 ? '− $' + payout.toFixed(2) : '—'}</span></div>
-    <div class="settlement-row"><span>Gross this deal</span><span class="${gross >= 0 ? 'pos' : 'neg'}">$${gross.toFixed(2)}</span></div>
-    <div class="settlement-row"><span>${gross >= 0 ? `Your split (${Math.round(rate*100)}% — deal #${dealNum} this month)` : 'Your loss (no split on negatives)'}</span><span class="${myShare >= 0 ? 'pos' : 'neg'}">$${myShare.toFixed(2)}</span></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Lead cost already expensed when lead was added · $850 monthly overhead in Profit tab</div>
+    <div class="settlement-row"><span>Monthly overhead (system + Equifax)</span><span class="neg">− $${FIXED_EXPENSES.toFixed(2)}</span></div>
+    <div class="settlement-row"><span>Gross (before split)</span><span class="${gross >= 0 ? 'pos' : 'neg'}">$${gross.toFixed(2)}</span></div>
+    <div class="settlement-row"><span>${gross >= 0 ? `Your ${Math.round(rate*100)}% split (deal #${dealNum} this month)` : 'Your loss (no split on negatives)'}</span><span class="${myShare >= 0 ? 'pos' : 'neg'}">$${myShare.toFixed(2)}</span></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Lead cost expensed separately when lead was added</div>
   `;
 }
 
@@ -3579,7 +3582,8 @@ function confirmSettlement() {
     vehicle: client.vehicle,
     leadType: client.leadType || 'consumer',
     income, payout,
-    leadCost: 0, // already expensed on add
+    overhead: FIXED_EXPENSES,
+    leadCost: 0,
     expenses: 0,
     gross, myShare, rate,
     settledAt: new Date().toISOString(),
@@ -3725,15 +3729,12 @@ function renderProfit() {
   const totalLeadCost = leadExpenses.reduce((s, e) => s + e.amount, 0);
   const totalLeadCount = leadExpenses.length;
 
-  const totalIncome   = periodSettled.reduce((s, d) => s + (d.income || 0), 0);
-  const totalPayout   = periodSettled.reduce((s, d) => s + (d.payout || 0), 0);
+  const totalIncome    = periodSettled.reduce((s, d) => s + (d.income || 0), 0);
+  const totalPayout    = periodSettled.reduce((s, d) => s + (d.payout || 0), 0);
   const totalDealShare = periodSettled.reduce((s, d) => s + (d.myShare || 0), 0);
+  const totalOverhead  = periodSettled.length * FIXED_EXPENSES;
 
-  // $850 is a flat monthly overhead — always deducted regardless of deals
-  const monthlyOverhead = statsPeriod === 'all'
-    ? FIXED_EXPENSES * getUniqueMonths(periodSettled)
-    : FIXED_EXPENSES;
-  const totalMyShare = totalDealShare - monthlyOverhead - totalLeadCost;
+  const totalMyShare = totalDealShare - totalLeadCost;
   const isGreen = totalMyShare > 0;
   const isNeutral = totalMyShare === 0;
   const rate = getCommissionRate(periodSettled.length);
@@ -3760,9 +3761,9 @@ function renderProfit() {
     <div class="profit-breakdown">
       <div class="profit-breakdown-row"><span class="lbl">Finance Income</span><span class="${totalIncome > 0 ? 'val-pos' : ''}" style="${totalIncome === 0 ? 'color:var(--text3)' : ''}">$${fmt(totalIncome)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Referral Payouts</span><span class="val-neg">− $${fmt(totalPayout)}</span></div>
-      <div class="profit-breakdown-row"><span class="lbl">Lead Costs (${totalLeadCount} lead${totalLeadCount !== 1 ? 's' : ''})</span><span class="val-neg">− $${fmt(totalLeadCost)}</span></div>
+      <div class="profit-breakdown-row"><span class="lbl">Overhead ($850 × ${periodSettled.length} deal${periodSettled.length !== 1 ? 's' : ''})</span><span class="val-neg">− $${fmt(totalOverhead)}</span></div>
       <div class="profit-breakdown-row"><span class="lbl">Deal subtotal (${Math.round(rate*100)}% split)</span><span class="${totalDealShare >= 0 ? 'val-pos' : 'val-neg'}">$${fmt(totalDealShare)}</span></div>
-      <div class="profit-breakdown-row"><span class="lbl">Monthly overhead (system + Equifax)</span><span class="val-neg">− $${fmt(monthlyOverhead)}</span></div>
+      <div class="profit-breakdown-row"><span class="lbl">Lead Costs (${totalLeadCount} lead${totalLeadCount !== 1 ? 's' : ''})</span><span class="val-neg">− $${fmt(totalLeadCost)}</span></div>
       <div class="profit-breakdown-row">
         <span class="lbl">${isGreen ? 'Your profit' : isNeutral ? 'Break even' : 'Your loss'}</span>
         <span class="${isGreen ? 'val-total-pos' : isNeutral ? '' : 'val-total-neg'}">$${fmt(totalMyShare)}</span>
