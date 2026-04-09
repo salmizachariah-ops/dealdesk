@@ -2038,7 +2038,7 @@ async function loadFromNotion(silent) {
       }
     }
 
-    await Promise.all([loadSettledFromNotion(), loadGraveyardFromNotion(), loadExpensesFromNotion()]);
+    await Promise.all([loadSettledFromNotion(), loadGraveyardFromNotion()]);
     setSynced('Synced');
   } catch(e) {
     setSyncError('Sync failed');
@@ -3641,66 +3641,29 @@ const LEAD_COSTS = { consumer: 93.5, commercial: 88, free: 0 };
 const FIXED_EXPENSES = 850;
 
 function logLeadExpense(client) {
+  // leadCost saved directly on the client record in Notion via clientToNotionProps
+  // No localStorage needed — profit tab reads from synced clients array
   const leadCost = LEAD_COSTS[client.leadType] || 0;
-  client.leadCost = leadCost; // persisted to Notion CRM record via clientToNotionProps
-  if (leadCost === 0) return;
-  // Also keep in localStorage for profit tab period filtering
-  const expense = {
-    clientId: client.id,
-    name: `${client.firstName} ${client.lastName}`,
-    leadType: client.leadType,
-    amount: leadCost,
-    addedAt: new Date().toISOString(),
-  };
-  const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
-  expenses.push(expense);
-  localStorage.setItem('dealdesk_expenses', JSON.stringify(expenses));
-}
-
-async function saveExpenseToNotion(expense) {
-  if (demoMode || !notionExpensesDbId) return;
-  try {
-    const dbId = formatDbId(notionExpensesDbId);
-    await notionFetch('POST', '/pages', {
-      parent: { database_id: dbId },
-      properties: {
-        'Name':     { title: [{ text: { content: expense.name } }] },
-        'ClientId': { rich_text: [{ text: { content: expense.clientId || '' } }] },
-        'LeadType': { rich_text: [{ text: { content: expense.leadType || '' } }] },
-        'Amount':   { number: expense.amount || 0 },
-        'AddedAt':  { date: { start: expense.addedAt } },
-      }
-    });
-  } catch(e) { console.error('Notion expense save error:', e); }
-}
-
-async function loadExpensesFromNotion() {
-  if (demoMode || !notionExpensesDbId) return;
-  try {
-    const dbId = formatDbId(notionExpensesDbId);
-    const res = await notionFetch('POST', `/databases/${dbId}/query`, { page_size: 200 });
-    const expenses = res.results.map(p => {
-      const props = p.properties;
-      return {
-        clientId: props['ClientId']?.rich_text?.[0]?.plain_text || '',
-        name: props['Name']?.title?.[0]?.plain_text || '',
-        leadType: props['LeadType']?.rich_text?.[0]?.plain_text || 'consumer',
-        amount: props['Amount']?.number || 0,
-        addedAt: props['AddedAt']?.date?.start || p.created_time,
-      };
-    });
-    if (expenses.length > 0) {
-      localStorage.setItem('dealdesk_expenses', JSON.stringify(expenses));
-    }
-  } catch(e) { console.error('Notion expenses load error:', e); }
+  client.leadCost = leadCost;
 }
 
 function getLeadExpensesForPeriod(start, end) {
-  const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
-  return expenses.filter(e => {
-    const t = new Date(e.addedAt);
-    return t >= start && t < end;
-  });
+  // Read directly from the synced clients array — source of truth is Notion
+  // Use lastContact as the "added" date (set when client is first created)
+  // Also include dead clients so costs aren't lost when a deal dies
+  const allClients = clients;
+  return allClients
+    .filter(c => {
+      if (!c.leadCost || c.leadCost === 0) return false;
+      const t = new Date(c.lastContact);
+      return t >= start && t < end;
+    })
+    .map(c => ({
+      clientId: c.id,
+      name: `${c.firstName} ${c.lastName}`,
+      leadType: c.leadType,
+      amount: c.leadCost,
+    }));
 }
 
 function getCommissionRate(dealsSettledThisMonth) {
