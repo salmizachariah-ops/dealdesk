@@ -4156,7 +4156,7 @@ function renderQuoteLenders() {
             <input type="number" placeholder="0" step="0.01" value="${l.exitFee}" oninput="updateQuoteLender(${i},'exitFee',this.value)" style="flex:1">
             <select oninput="updateQuoteLender(${i},'exitFeeType',this.value)" style="width:70px">
               <option value="fixed" ${l.exitFeeType=='fixed'?'selected':''}>$</option>
-              <option value="percent" ${l.exitFeeType=='percent'?'selected':'}>%</option>
+              <option value="percent" ${l.exitFeeType=='percent'?'selected':''}>%</option>
             </select>
           </div>
         </div>
