@@ -1384,6 +1384,10 @@ header {
         <span id="sync-label">Not connected</span>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="loadFromNotion()" title="Refresh from Notion">↻ Sync</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCallsModal()" style="position:relative">
+        📞 Calls
+        <span id="calls-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center"></span>
+      </button>
       <button class="btn btn-ghost btn-sm" onclick="openArchive()">📁 Settled Archive</button>
       <button class="btn btn-ghost btn-sm" onclick="openGraveyard()">💀 Graveyard</button>
       <button class="btn btn-ghost btn-sm" onclick="openStats()">📊 Stats</button>
@@ -1725,6 +1729,47 @@ header {
   </div>
 </div>
 
+<!-- ─── REMINDER MODAL ─── -->
+<div class="modal-backdrop" id="reminder-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🔔 Add Reminder</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px" id="reminder-modal-name"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('reminder-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-input" id="reminder-date" style="font-size:16px">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Note</label>
+        <input type="text" class="form-input" id="reminder-note" placeholder="e.g. Call back after pay day">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('reminder-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveManualReminder()">Set Reminder →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── CALLS MODAL ─── -->
+<div class="modal-backdrop" id="calls-modal">
+  <div class="modal" style="max-width:580px;max-height:92vh">
+    <div class="modal-header">
+      <div class="modal-title">📞 Calls & Reminders</div>
+      <button class="modal-close" onclick="closeModal('calls-modal')">×</button>
+    </div>
+    <div class="modal-body" id="calls-modal-body" style="padding-bottom:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('calls-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- ─── QUOTE GENERATOR MODAL ─── -->
 <div class="modal-backdrop" id="quote-modal">
   <div class="modal" style="max-width:720px;max-height:94vh">
@@ -1836,6 +1881,7 @@ let notionDbId = '';
 let notionSettledDbId = '';
 let notionGraveyardDbId = '';
 let notionExpensesDbId = '';
+let notionRemindersDbId = '';
 let demoMode = false;
 let syncTimeout = null;
 let dragClient = null;
@@ -1856,6 +1902,7 @@ window.addEventListener('DOMContentLoaded', () => {
     notionSettledDbId = cfg.settledDbId || '';
     notionGraveyardDbId = cfg.graveyardDbId || '';
     notionExpensesDbId = cfg.expensesDbId || '';
+    notionRemindersDbId = cfg.remindersDbId || '';
     if (notionToken) {
       startApp();
       loadFromNotion();
@@ -1898,6 +1945,7 @@ async function connectNotion() {
     notionSettledDbId = cfg.settledDbId || '';
     notionGraveyardDbId = cfg.graveyardDbId || '';
     notionExpensesDbId = cfg.expensesDbId || '';
+    notionRemindersDbId = cfg.remindersDbId || '';
     setSynced('Notion synced');
   } catch(e) {
     setSyncError('Connection failed');
@@ -1993,12 +2041,30 @@ async function createNotionDatabase() {
     }
   });
 
+  // Create Reminders database
+  const remindersRes = await notionFetch('POST', '/databases', {
+    parent: { type: 'page_id', page_id: parentPageId },
+    title: [{ type: 'text', text: { content: 'DealDesk — Reminders' } }],
+    properties: {
+      'Name':       { title: {} },
+      'ClientId':   { rich_text: {} },
+      'ClientName': { rich_text: {} },
+      'Date':       { date: {} },
+      'Note':       { rich_text: {} },
+      'Type':       { select: { options: [{ name: 'cadence' }, { name: 'manual' }] } },
+      'Done':       { checkbox: {} },
+      'Cancelled':  { checkbox: {} },
+    }
+  });
+
   const config = JSON.parse(localStorage.getItem('dealdesk_config') || '{}');
   config.settledDbId = settledRes.id.replace(/-/g,'');
   config.graveyardDbId = graveyardRes.id.replace(/-/g,'');
   config.expensesDbId = expensesRes.id.replace(/-/g,'');
+  config.remindersDbId = remindersRes.id.replace(/-/g,'');
   notionExpensesDbId = config.expensesDbId;
-  localStorage.setItem('dealdesk_config', JSON.stringify({ token: notionToken, dbId: notionDbId, settledDbId: config.settledDbId, graveyardDbId: config.graveyardDbId, expensesDbId: config.expensesDbId }));
+  notionRemindersDbId = config.remindersDbId;
+  localStorage.setItem('dealdesk_config', JSON.stringify({ token: notionToken, dbId: notionDbId, settledDbId: config.settledDbId, graveyardDbId: config.graveyardDbId, expensesDbId: config.expensesDbId, remindersDbId: config.remindersDbId }));
   showToast('✅ Created DealDesk databases in Notion!');
 }
 
@@ -2038,8 +2104,9 @@ async function loadFromNotion(silent) {
       }
     }
 
-    await Promise.all([loadSettledFromNotion(), loadGraveyardFromNotion()]);
+    await Promise.all([loadSettledFromNotion(), loadRemindersFromNotion()]);
     setSynced('Synced');
+    updateCallsBadge();
   } catch(e) {
     setSyncError('Sync failed');
     if (!silent) console.error(e);
@@ -2296,6 +2363,9 @@ function buildCard(client, col) {
         <button class="card-icon-btn" title="Copy SMS template" data-action="sms" style="border-color:#5cb8f0;background:#edf7fe">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b9fd4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         </button>
+        <button class="card-icon-btn" title="Add reminder" data-action="reminder" style="border-color:#c4b5fd;background:#f5f3ff">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
       </div>
     </div>
     <div class="card-quick-note">
@@ -2319,6 +2389,10 @@ function buildCard(client, col) {
   card.querySelector('[data-action="sms"]').addEventListener('click', (e) => {
     e.stopPropagation();
     copySmsTemplate(client.id);
+  });
+  card.querySelector('[data-action="reminder"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openReminderModal(client.id);
   });
 
   const noteInput = card.querySelector('[data-action="quicknote"]');
@@ -2371,10 +2445,12 @@ function logCall(clientId, type) {
   client.activity = client.activity || [];
   if (type === 'spoke') {
     client.activity.push({ type: 'call', text: '📞 Called — spoke to client', time: new Date().toISOString() });
-    // Stay green for 12 hours
     client.spokeAt = new Date(Date.now() + 12 * 3600000).toISOString();
     showToast(`✓ Logged: spoke to ${client.firstName}`);
     addNotif({ icon: '📞', text: `Spoke to ${client.firstName} ${client.lastName}`, clientId, type: 'spoke' });
+    // Cancel any remaining cadence reminders
+    cancelCadenceReminders(clientId);
+    updateCallsBadge();
   } else {
     client.activity.push({ type: 'call', text: '📵 Called — no answer', time: new Date().toISOString() });
     // No answer resets clock for 2.5 hours
@@ -2699,8 +2775,7 @@ function moveClient(clientId, newStatus, skipRender) {
   // Trigger settlement popup
   // Only trigger settlement popup if this client hasn't been settled before
   if (newStatus === 'settled') {
-    const allSettled = JSON.parse(localStorage.getItem('dealdesk_settled') || '[]');
-    const alreadySettled = allSettled.some(s => s.clientId === client.id);
+    const alreadySettled = getSettledDeals().some(s => s.clientId === client.id);
     if (!alreadySettled) {
       setTimeout(() => openSettlementModal(client.id), 400);
     }
@@ -2959,6 +3034,7 @@ function saveClient() {
     clients.push(newClient);
     saveToNotion(newClient);
     logLeadExpense(newClient);
+    if (newClient.status === 'lead') generateCadenceReminders(newClient);
     const leadCost = LEAD_COSTS[newClient.leadType] || 0;
     showToast(`✓ ${firstName} added${leadCost > 0 ? ` · $${leadCost.toFixed(2)} lead cost logged` : ''}`);
   }
@@ -3005,6 +3081,7 @@ function quickAddClient() {
   clients.push(newClient);
   saveToNotion(newClient);
   logLeadExpense(newClient);
+  if (newClient.status === 'lead') generateCadenceReminders(newClient);
   ['qa-name','qa-vehicle','qa-phone'].forEach(id => document.getElementById(id).value = '');
   renderBoard(); updateClientCount(); renderQMB();
   const leadCost = LEAD_COSTS[newClient.leadType] || 0;
@@ -3147,7 +3224,10 @@ function openSettings() {
 function saveSettings() {
   notionToken = document.getElementById('s-token').value.trim();
   notionDbId = document.getElementById('s-db').value.trim();
-  localStorage.setItem('dealdesk_config', JSON.stringify({ token: notionToken, dbId: notionDbId }));
+  const cfg = JSON.parse(localStorage.getItem('dealdesk_config') || '{}');
+  cfg.token = notionToken;
+  cfg.dbId = notionDbId;
+  localStorage.setItem('dealdesk_config', JSON.stringify(cfg));
   closeModal('settings-modal');
   loadFromNotion();
   showToast('Settings saved — reconnecting…');
@@ -3474,11 +3554,6 @@ function confirmDeadDeal() {
 
   scheduleSave(client);
 
-  // Also keep in localStorage graveyard for backwards compat
-  const graveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
-  graveyard.unshift({ ...client });
-  localStorage.setItem('dealdesk_graveyard', JSON.stringify(graveyard));
-
   closeModal('dead-modal');
   pendingDeadClientId = null;
   renderBoard(); updateClientCount(); renderQMB();
@@ -3506,16 +3581,9 @@ function touchIsOverTrash(x, y) {
 // GRAVEYARD
 // ═══════════════════════════════════════════
 function openGraveyard() {
-  // Pull dead clients from the main clients array (synced from Notion)
-  // Fall back to localStorage for any legacy entries
-  const deadFromClients = clients.filter(c => c.dead);
-  const legacyGraveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
-  // Merge — prefer Notion clients, add any legacy not already there
-  const notionIds = new Set(deadFromClients.map(c => c.id));
-  const legacy = legacyGraveyard.filter(c => !notionIds.has(c.id));
-  const graveyard = [...deadFromClients, ...legacy].sort((a, b) =>
-    new Date(b.deadAt || 0) - new Date(a.deadAt || 0)
-  );
+  const graveyard = clients
+    .filter(c => c.dead)
+    .sort((a, b) => new Date(b.deadAt || 0) - new Date(a.deadAt || 0));
 
   const body = document.getElementById('graveyard-body');
   if (graveyard.length === 0) {
@@ -3563,33 +3631,15 @@ async function saveSettledToNotion(deal) {
   } catch(e) { console.error('Notion settled save error:', e); }
 }
 
-async function saveGraveyardToNotion(dead) {
-  if (demoMode || !notionGraveyardDbId) return;
-  try {
-    const dbId = formatDbId(notionGraveyardDbId);
-    await notionFetch('POST', '/pages', {
-      parent: { database_id: dbId },
-      properties: {
-        'Name':       { title: [{ text: { content: `${dead.firstName} ${dead.lastName}` } }] },
-        'Vehicle':    { rich_text: [{ text: { content: dead.vehicle || '' } }] },
-        'Phone':      { phone_number: dead.phone || null },
-        'LeadType':   { rich_text: [{ text: { content: dead.leadType || '' } }] },
-        'DeadReason': { rich_text: [{ text: { content: dead.deadReason || '' } }] },
-        'DeadAt':     { date: { start: dead.deadAt } },
-        'Lender':     { rich_text: [{ text: { content: dead.lender || '' } }] },
-      }
-    });
-  } catch(e) { console.error('Notion graveyard save error:', e); }
-}
-
 async function loadSettledFromNotion() {
   if (demoMode || !notionSettledDbId) return;
   try {
     const dbId = formatDbId(notionSettledDbId);
     const res = await notionFetch('POST', `/databases/${dbId}/query`, { page_size: 100 });
-    const deals = res.results.map(p => {
+    settledDeals = res.results.map(p => {
       const props = p.properties;
       return {
+        notionPageId: p.id,
         name: props['Name']?.title?.[0]?.plain_text || '',
         vehicle: props['Vehicle']?.rich_text?.[0]?.plain_text || '',
         leadType: props['LeadType']?.rich_text?.[0]?.plain_text || 'consumer',
@@ -3600,40 +3650,285 @@ async function loadSettledFromNotion() {
         myShare: props['MyShare']?.number || 0,
         rate: props['Rate']?.number || 0.6,
         settledAt: props['SettledAt']?.date?.start || p.created_time,
-        expenses: 0,
       };
     });
-    // Merge with localStorage (keep local if Notion is empty, prefer Notion)
-    if (deals.length > 0) {
-      localStorage.setItem('dealdesk_settled', JSON.stringify(deals));
-    }
   } catch(e) { console.error('Notion settled load error:', e); }
 }
 
-async function loadGraveyardFromNotion() {
-  if (demoMode || !notionGraveyardDbId) return;
+// ═══════════════════════════════════════════
+// REMINDERS SYSTEM
+// ═══════════════════════════════════════════
+let reminders = []; // in-memory, synced from Notion
+
+// ── Notion save/load ──────────────────────
+async function saveReminderToNotion(reminder) {
+  if (demoMode || !notionRemindersDbId) return;
   try {
-    const dbId = formatDbId(notionGraveyardDbId);
-    const res = await notionFetch('POST', `/databases/${dbId}/query`, { page_size: 100 });
-    const dead = res.results.map(p => {
-      const props = p.properties;
-      return {
-        firstName: props['Name']?.title?.[0]?.plain_text?.split(' ')?.[0] || '',
-        lastName: props['Name']?.title?.[0]?.plain_text?.split(' ').slice(1).join(' ') || '',
-        vehicle: props['Vehicle']?.rich_text?.[0]?.plain_text || '',
-        phone: props['Phone']?.phone_number || '',
-        leadType: props['LeadType']?.rich_text?.[0]?.plain_text || '',
-        deadReason: props['DeadReason']?.rich_text?.[0]?.plain_text || '',
-        deadAt: props['DeadAt']?.date?.start || p.created_time,
-        lender: props['Lender']?.rich_text?.[0]?.plain_text || '',
-      };
+    const dbId = formatDbId(notionRemindersDbId);
+    const res = await notionFetch('POST', '/pages', {
+      parent: { database_id: dbId },
+      properties: {
+        'Name':       { title: [{ text: { content: reminder.note || reminder.type } }] },
+        'ClientId':   { rich_text: [{ text: { content: reminder.clientId } }] },
+        'ClientName': { rich_text: [{ text: { content: reminder.clientName || '' } }] },
+        'Date':       { date: { start: reminder.date } },
+        'Note':       { rich_text: [{ text: { content: reminder.note || '' } }] },
+        'Type':       { select: { name: reminder.type } },
+        'Done':       { checkbox: false },
+        'Cancelled':  { checkbox: false },
+      }
     });
-    if (dead.length > 0) {
-      localStorage.setItem('dealdesk_graveyard', JSON.stringify(dead));
-    }
-  } catch(e) { console.error('Notion graveyard load error:', e); }
+    reminder.notionPageId = res.id;
+  } catch(e) { console.error('Reminder save error:', e); }
 }
 
+async function updateReminderInNotion(reminder) {
+  if (demoMode || !reminder.notionPageId) return;
+  try {
+    await notionFetch('PATCH', `/pages/${reminder.notionPageId}`, {
+      properties: {
+        'Done':      { checkbox: reminder.done || false },
+        'Cancelled': { checkbox: reminder.cancelled || false },
+      }
+    });
+  } catch(e) { console.error('Reminder update error:', e); }
+}
+
+async function loadRemindersFromNotion() {
+  if (demoMode || !notionRemindersDbId) return;
+  try {
+    const dbId = formatDbId(notionRemindersDbId);
+    const res = await notionFetch('POST', `/databases/${dbId}/query`, {
+      filter: { and: [
+        { property: 'Done', checkbox: { equals: false } },
+        { property: 'Cancelled', checkbox: { equals: false } },
+      ]},
+      page_size: 200
+    });
+    reminders = res.results.map(p => {
+      const props = p.properties;
+      return {
+        id: p.id,
+        notionPageId: p.id,
+        clientId: props['ClientId']?.rich_text?.[0]?.plain_text || '',
+        clientName: props['ClientName']?.rich_text?.[0]?.plain_text || '',
+        date: props['Date']?.date?.start || '',
+        note: props['Note']?.rich_text?.[0]?.plain_text || '',
+        type: props['Type']?.select?.name || 'manual',
+        done: props['Done']?.checkbox || false,
+        cancelled: props['Cancelled']?.checkbox || false,
+      };
+    });
+  } catch(e) { console.error('Reminder load error:', e); }
+}
+
+// ── Cadence generator ─────────────────────
+const CADENCE = [
+  { day: 1, attempts: 5 },
+  { day: 2, attempts: 2 },
+  { day: 3, attempts: 1 },
+  { day: 4, attempts: 1 },
+  { day: 5, attempts: 1 },
+  { day: 6, attempts: 1 },
+  { day: 7, attempts: 1 },
+];
+
+function getNextBusinessDay(fromDate, daysAhead) {
+  const d = new Date(fromDate);
+  let added = 0;
+  while (added < daysAhead) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++; // skip Sat/Sun
+  }
+  return d.toISOString().split('T')[0];
+}
+
+async function generateCadenceReminders(client) {
+  const now = new Date();
+  const addedAfter1pm = now.getHours() >= 13;
+  // If added after 1pm, day 1 is next business day, else today
+  const startOffset = addedAfter1pm ? 1 : 0;
+
+  for (const slot of CADENCE) {
+    const dayOffset = startOffset + slot.day - 1;
+    let date;
+    if (dayOffset === 0) {
+      date = now.toISOString().split('T')[0];
+    } else {
+      date = getNextBusinessDay(now, dayOffset);
+    }
+
+    for (let i = 0; i < slot.attempts; i++) {
+      const reminder = {
+        id: `${Date.now()}-${slot.day}-${i}`,
+        clientId: client.id,
+        clientName: `${client.firstName} ${client.lastName}`,
+        date,
+        note: `Call attempt ${i + 1} of ${slot.attempts} — Day ${slot.day}`,
+        type: 'cadence',
+        done: false,
+        cancelled: false,
+      };
+      reminders.push(reminder);
+      await saveReminderToNotion(reminder);
+    }
+  }
+}
+
+async function cancelCadenceReminders(clientId) {
+  const toCancel = reminders.filter(r => r.clientId === clientId && r.type === 'cadence' && !r.done && !r.cancelled);
+  for (const r of toCancel) {
+    r.cancelled = true;
+    await updateReminderInNotion(r);
+  }
+  reminders = reminders.filter(r => !(r.clientId === clientId && r.type === 'cadence' && r.cancelled));
+}
+
+// ── Manual reminder ───────────────────────
+let reminderClientId = null;
+
+function openReminderModal(clientId) {
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+  reminderClientId = clientId;
+  document.getElementById('reminder-modal-name').textContent = `${client.firstName} ${client.lastName}`;
+  document.getElementById('reminder-date').value = '';
+  document.getElementById('reminder-note').value = '';
+  openModal('reminder-modal');
+}
+
+async function saveManualReminder() {
+  const date = document.getElementById('reminder-date').value;
+  const note = document.getElementById('reminder-note').value.trim();
+  if (!date) { showToast('Please pick a date'); return; }
+  const client = clients.find(c => c.id === reminderClientId);
+  if (!client) return;
+
+  const reminder = {
+    id: Date.now().toString(),
+    clientId: client.id,
+    clientName: `${client.firstName} ${client.lastName}`,
+    date,
+    note: note || 'Follow up',
+    type: 'manual',
+    done: false,
+    cancelled: false,
+  };
+  reminders.push(reminder);
+  await saveReminderToNotion(reminder);
+  closeModal('reminder-modal');
+  reminderClientId = null;
+  showToast(`✓ Reminder set for ${client.firstName} — ${date}`);
+}
+
+// ── Today's calls modal ───────────────────
+function openCallsModal() {
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = reminders
+    .filter(r => !r.done && !r.cancelled && r.date <= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group by client
+  const byClient = {};
+  upcoming.forEach(r => {
+    if (!byClient[r.clientId]) byClient[r.clientId] = { clientName: r.clientName, clientId: r.clientId, reminders: [] };
+    byClient[r.clientId].reminders.push(r);
+  });
+
+  const body = document.getElementById('calls-modal-body');
+  const entries = Object.values(byClient);
+
+  if (entries.length === 0) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);font-size:14px">🎉 No calls due today</div>';
+  } else {
+    body.innerHTML = entries.map(entry => {
+      const cadence = entry.reminders.filter(r => r.type === 'cadence');
+      const manual = entry.reminders.filter(r => r.type === 'manual');
+      const client = clients.find(c => c.id === entry.clientId);
+      const phone = client?.phone || '';
+      const vehicle = client?.vehicle || '';
+      return `
+        <div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-family:'Instrument Serif',serif;font-size:17px">${entry.clientName}</div>
+              <div style="font-size:12px;color:var(--text3);margin-top:2px">${vehicle}</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${phone ? `<a href="tel:${phone}" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);text-decoration:none">📞 ${phone}</a>` : ''}
+            </div>
+          </div>
+          ${cadence.length > 0 ? `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <div style="background:var(--accent-light);color:var(--accent);font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px">
+                📞 ${cadence.length} call${cadence.length !== 1 ? 's' : ''} due (cadence)
+              </div>
+              ${cadence.map(r => `
+                <button onclick="markReminderDone('${r.id}')" style="font-size:11px;padding:3px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-family:'DM Sans',sans-serif">✓ Done</button>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${manual.map(r => `
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+              <div style="background:var(--accent2-light);color:var(--accent2);font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px">
+                🔔 ${r.note}
+              </div>
+              <div style="font-size:11px;color:var(--text3)">${r.date}</div>
+              <button onclick="markReminderDone('${r.id}')" style="font-size:11px;padding:3px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-family:'DM Sans',sans-serif">✓ Done</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Also show upcoming (next 7 days)
+  const future = reminders
+    .filter(r => !r.done && !r.cancelled && r.date > today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 20);
+
+  if (future.length > 0) {
+    const upcomingHtml = future.map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:13px">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);width:72px;flex-shrink:0">${r.date}</div>
+        <div style="flex:1;color:var(--text)">${r.clientName}</div>
+        <div style="color:var(--text2);font-size:12px">${r.note}</div>
+        <div style="background:${r.type==='cadence'?'var(--accent-light)':'var(--accent2-light)'};color:${r.type==='cadence'?'var(--accent)':'var(--accent2)'};font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">${r.type}</div>
+      </div>
+    `).join('');
+    body.innerHTML += `
+      <div style="margin-top:20px;margin-bottom:8px;font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3)">Upcoming</div>
+      ${upcomingHtml}
+    `;
+  }
+
+  openModal('calls-modal');
+}
+
+async function markReminderDone(reminderId) {
+  const r = reminders.find(r => r.id === reminderId);
+  if (!r) return;
+  r.done = true;
+  await updateReminderInNotion(r);
+  reminders = reminders.filter(x => x.id !== reminderId);
+  // Refresh modal
+  openCallsModal();
+  // Update badge
+  updateCallsBadge();
+}
+
+function updateCallsBadge() {
+  const today = new Date().toISOString().split('T')[0];
+  const due = reminders.filter(r => !r.done && !r.cancelled && r.date <= today).length;
+  const badge = document.getElementById('calls-badge');
+  if (badge) {
+    badge.style.display = due > 0 ? 'inline' : 'none';
+    badge.textContent = due;
+  }
+}
+// ═══════════════════════════════════════════
 // ═══════════════════════════════════════════
 // COMMISSION & PROFIT HELPERS
 // ═══════════════════════════════════════════
@@ -3681,13 +3976,19 @@ function getUniqueMonths(settledDeals) {
   return Math.max(1, months.size);
 }
 
+// In-memory settled deals — written by loadSettledFromNotion, never localStorage
+let settledDeals = [];
+
+function getSettledDeals() {
+  return settledDeals;
+}
+
 function getSettledThisMonth() {
   const now = new Date();
-  return (JSON.parse(localStorage.getItem('dealdesk_settled') || '[]'))
-    .filter(s => {
-      const d = new Date(s.settledAt);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
+  return settledDeals.filter(s => {
+    const d = new Date(s.settledAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
 }
 
 function calcDealProfit(income, payout, dealNumThisMonth) {
@@ -3742,8 +4043,7 @@ function confirmSettlement() {
   const dealNum = settled.length + 1;
   const { rate, gross, myShare } = calcDealProfit(income, payout, dealNum);
 
-  const allSettled = JSON.parse(localStorage.getItem('dealdesk_settled') || '[]');
-  allSettled.push({
+  const newDeal = {
     clientId: client.id,
     name: `${client.firstName} ${client.lastName}`,
     vehicle: client.vehicle,
@@ -3754,9 +4054,9 @@ function confirmSettlement() {
     expenses: 0,
     gross, myShare, rate,
     settledAt: new Date().toISOString(),
-  });
-  localStorage.setItem('dealdesk_settled', JSON.stringify(allSettled));
-  saveSettledToNotion(allSettled[allSettled.length - 1]);
+  };
+  settledDeals.push(newDeal);
+  saveSettledToNotion(newDeal);
 
   closeModal('settlement-modal');
   showToast(`🎉 Deal saved — your cut: $${myShare.toFixed(2)}`);
@@ -3869,11 +4169,11 @@ function getStatsData() {
   const calls = periodActivity.filter(a => a.type === 'call');
   const spoke = calls.filter(a => a.text.includes('spoke'));
   const noAnswer = calls.filter(a => a.text.includes('no answer'));
-  const allSettled = JSON.parse(localStorage.getItem('dealdesk_settled') || '[]');
-  const periodSettled = allSettled.filter(s => { const t = new Date(s.settledAt); return t >= start && t < end; });
-  const graveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
-  const periodDead = graveyard.filter(d => { const t = new Date(d.deadAt); return t >= start && t < end; });
-  return { calls, spoke, noAnswer, periodSettled, periodDead, allSettled };
+  const periodSettled = settledDeals.filter(s => { const t = new Date(s.settledAt); return t >= start && t < end; });
+  const periodDead = clients.filter(c => c.dead && c.deadAt).filter(c => {
+    const t = new Date(c.deadAt); return t >= start && t < end;
+  });
+  return { calls, spoke, noAnswer, periodSettled, periodDead, allSettled: settledDeals };
 }
 
 function renderProfit() {
@@ -3998,8 +4298,7 @@ function renderStatsTab() {
   const funnelCounts = funnelStages.map(s => ({ ...s, count: clients.filter(c => c.status === s.id).length }));
   const maxFunnel = Math.max(1, ...funnelCounts.map(s => s.count));
 
-  // Dead reasons
-  const graveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
+  // Dead reasons — from periodDead (already sourced from clients array in getStatsData)
   const pgDead = periodDead;
   const reasonCounts = {};
   pgDead.forEach(d => { reasonCounts[d.deadReason] = (reasonCounts[d.deadReason] || 0) + 1; });
