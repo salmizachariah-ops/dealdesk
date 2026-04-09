@@ -1931,6 +1931,7 @@ async function createNotionDatabase() {
       'LoanAmount':  { rich_text: {} },
       'FinanceType': { rich_text: {} },
       'LeadType':    { rich_text: {} },
+      'LeadCost':    { number: { format: 'dollar' } },
       'Reminder':    { date: {} },
       'Notes':       { rich_text: {} },
       'Activity':    { rich_text: {} },
@@ -1939,6 +1940,9 @@ async function createNotionDatabase() {
       'NoAnswerAt':  { date: {} },
       'FollowUpDate':{ rich_text: {} },
       'Settled':     { checkbox: {} },
+      'Dead':        { checkbox: {} },
+      'DeadReason':  { rich_text: {} },
+      'DeadAt':      { date: {} },
     }
   });
   notionDbId = res.id.replace(/-/g,'');
@@ -2075,6 +2079,11 @@ function pageToClient(page) {
       loanAmount: getText(p['LoanAmount']),
       financeType: getText(p['FinanceType']) || 'Car Finance',
       leadType: getText(p['LeadType']) || 'consumer',
+      leadCost: p['LeadCost']?.number || 0,
+      dead: p['Dead']?.checkbox || false,
+      deadReason: getText(p['DeadReason']) || '',
+      deadAt: getDate(p['DeadAt']) || null,
+      leadCost: p['LeadCost']?.number || null,
       status: statusId,
       reminder: getDate(p['Reminder']),
       notes: getText(p['Notes']),
@@ -2101,6 +2110,11 @@ function clientToNotionProps(client) {
     'LoanAmount':  { rich_text: [{ text: { content: client.loanAmount || '' } }] },
     'FinanceType': { rich_text: [{ text: { content: client.financeType || '' } }] },
     'LeadType':    { rich_text: [{ text: { content: client.leadType || '' } }] },
+    'LeadCost':    { number: client.leadCost || 0 },
+    'Dead':        { checkbox: client.dead || false },
+    'DeadReason':  { rich_text: [{ text: { content: client.deadReason || '' } }] },
+    'DeadAt':      { date: client.deadAt ? { start: client.deadAt } : null },
+    'LeadCost':    { number: LEAD_COSTS[client.leadType] || 0 },
     'Notes':       { rich_text: [{ text: { content: client.notes || '' } }] },
     'Activity':    { rich_text: [{ text: { content: JSON.stringify(client.activity || []).slice(0,2000) } }] },
     'LastContact': { date: client.lastContact ? { start: client.lastContact } : null },
@@ -2198,7 +2212,7 @@ function renderBoard() {
   board.innerHTML = '';
 
   COLUMNS.forEach(col => {
-    const colClients = clients.filter(c => c.status === col.id);
+    const colClients = clients.filter(c => c.status === col.id && !c.dead);
     const colEl = document.createElement('div');
     colEl.className = 'column';
     colEl.dataset.colId = col.id;
@@ -3451,19 +3465,19 @@ function confirmDeadDeal() {
   const client = clients.find(c => c.id === pendingDeadClientId);
   if (!client) return;
 
-  // Save to graveyard in localStorage
-  const graveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
-  graveyard.unshift({
-    ...client,
-    deadReason: reason,
-    deadAt: new Date().toISOString(),
-  });
-  localStorage.setItem('dealdesk_graveyard', JSON.stringify(graveyard));
-  saveGraveyardToNotion({ ...client, deadReason: reason, deadAt: new Date().toISOString() });
+  // Mark as dead — stays in Notion CRM, just hidden from board
+  client.dead = true;
+  client.deadReason = reason;
+  client.deadAt = new Date().toISOString();
+  client.activity = client.activity || [];
+  client.activity.push({ type: 'note', text: `💀 Marked as dead — ${reason}`, time: new Date().toISOString() });
 
-  // Remove from active clients
-  deleteFromNotion(client);
-  clients = clients.filter(c => c.id !== pendingDeadClientId);
+  scheduleSave(client);
+
+  // Also keep in localStorage graveyard for backwards compat
+  const graveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
+  graveyard.unshift({ ...client });
+  localStorage.setItem('dealdesk_graveyard', JSON.stringify(graveyard));
 
   closeModal('dead-modal');
   pendingDeadClientId = null;
@@ -3492,7 +3506,17 @@ function touchIsOverTrash(x, y) {
 // GRAVEYARD
 // ═══════════════════════════════════════════
 function openGraveyard() {
-  const graveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
+  // Pull dead clients from the main clients array (synced from Notion)
+  // Fall back to localStorage for any legacy entries
+  const deadFromClients = clients.filter(c => c.dead);
+  const legacyGraveyard = JSON.parse(localStorage.getItem('dealdesk_graveyard') || '[]');
+  // Merge — prefer Notion clients, add any legacy not already there
+  const notionIds = new Set(deadFromClients.map(c => c.id));
+  const legacy = legacyGraveyard.filter(c => !notionIds.has(c.id));
+  const graveyard = [...deadFromClients, ...legacy].sort((a, b) =>
+    new Date(b.deadAt || 0) - new Date(a.deadAt || 0)
+  );
+
   const body = document.getElementById('graveyard-body');
   if (graveyard.length === 0) {
     body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">No dead deals yet 🎉</div>';
@@ -3502,7 +3526,7 @@ function openGraveyard() {
         <div class="archive-item-left">
           <div class="archive-name">${c.firstName} ${c.lastName}</div>
           <div class="archive-vehicle">${c.vehicle || '—'} ${c.lender ? '· ' + c.lender : ''}</div>
-          <div style="font-size:12px;color:var(--red);margin-top:4px">💀 ${c.deadReason}</div>
+          <div style="font-size:12px;color:var(--red);margin-top:4px">💀 ${c.deadReason || '—'}</div>
         </div>
         <div class="archive-date" style="text-align:right">
           <div>${formatAge(c.deadAt)}</div>
@@ -3618,7 +3642,9 @@ const FIXED_EXPENSES = 850;
 
 function logLeadExpense(client) {
   const leadCost = LEAD_COSTS[client.leadType] || 0;
+  client.leadCost = leadCost; // persisted to Notion CRM record via clientToNotionProps
   if (leadCost === 0) return;
+  // Also keep in localStorage for profit tab period filtering
   const expense = {
     clientId: client.id,
     name: `${client.firstName} ${client.lastName}`,
@@ -3629,7 +3655,6 @@ function logLeadExpense(client) {
   const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
   expenses.push(expense);
   localStorage.setItem('dealdesk_expenses', JSON.stringify(expenses));
-  saveExpenseToNotion(expense);
 }
 
 async function saveExpenseToNotion(expense) {
