@@ -1018,6 +1018,97 @@ header {
 .settlement-row .neg { color: var(--red); }
 .settlement-row .pos { color: var(--green); }
 
+/* ─── QUOTE GENERATOR ─── */
+.quote-lender-card {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.quote-lender-card.featured { border-color: var(--accent); background: var(--accent-light); }
+.quote-lender-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.quote-lender-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 18px; color: var(--accent); font-weight: 400;
+  flex-shrink: 0;
+}
+.quote-featured-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text2); cursor: pointer;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1.5px solid var(--border); background: var(--surface);
+  transition: all 0.15s; white-space: nowrap;
+}
+.quote-featured-toggle.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.quote-remove-btn {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--text3); font-size: 18px; padding: 2px 4px;
+  transition: color 0.15s;
+}
+.quote-remove-btn:hover { color: var(--red); }
+.quote-fields {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+}
+.quote-field label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text3); margin-bottom: 4px;
+}
+.quote-field input, .quote-field select {
+  width: 100%; padding: 8px 10px;
+  border: 1.5px solid var(--border); border-radius: 7px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  color: var(--text); background: var(--surface);
+  outline: none; transition: border-color 0.15s;
+}
+.quote-field input:focus, .quote-field select:focus { border-color: var(--accent); }
+.quote-exit-row { margin-top: 10px; display: flex; gap: 10px; align-items: flex-end; }
+
+/* ─── PRINT STYLES ─── */
+@media print {
+  body > *:not(#quote-print-view) { display: none !important; }
+  #quote-print-view { display: block !important; }
+  .qpv-page {
+    width: 210mm; min-height: 297mm;
+    padding: 20mm 18mm; box-sizing: border-box;
+    font-family: 'DM Sans', sans-serif;
+    color: #1a1814;
+  }
+}
+.qpv-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding-bottom: 16px; border-bottom: 2px solid #1a3a2a; margin-bottom: 24px;
+}
+.qpv-logo { font-family: 'Instrument Serif', serif; font-size: 28px; color: #1a3a2a; }
+.qpv-broker { font-size: 12px; color: #6b6560; margin-top: 3px; }
+.qpv-date { font-size: 12px; color: #6b6560; text-align: right; }
+.qpv-client-block { margin-bottom: 24px; }
+.qpv-client-name { font-family: 'Instrument Serif', serif; font-size: 22px; color: #1a1814; }
+.qpv-client-sub { font-size: 13px; color: #6b6560; margin-top: 3px; }
+.qpv-section-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #6b6560; margin-bottom: 12px;
+}
+.qpv-featured-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+.qpv-featured-card {
+  background: #e8f0eb; border-radius: 12px; padding: 18px;
+  border: 2px solid #1a3a2a;
+}
+.qpv-card-lender { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #1a3a2a; margin-bottom: 10px; }
+.qpv-card-row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #c8d9cc; }
+.qpv-card-row:last-child { border-bottom: none; font-weight: 700; font-size: 15px; padding-top: 8px; }
+.qpv-card-label { color: #4a6155; }
+.qpv-card-value { font-weight: 600; color: #1a1814; }
+.qpv-other-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.qpv-other-table th { text-align: left; padding: 8px 10px; background: #f5f3ef; font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #6b6560; border-bottom: 1px solid #e2ddd6; }
+.qpv-other-table td { padding: 10px 10px; border-bottom: 1px solid #e2ddd6; color: #1a1814; }
+.qpv-other-table tr:last-child td { border-bottom: none; }
+.qpv-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2ddd6; font-size: 11px; color: #a09b94; text-align: center; }
+
 .dead-reason-label { display: none; }
 
 .modal-backdrop {
@@ -1628,9 +1719,35 @@ header {
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="deleteClientFromDetail()" style="color:var(--red);border-color:var(--red)">Delete</button>
       <button class="btn btn-ghost" onclick="editClientFromDetail()">Edit</button>
+      <button class="btn btn-ghost" onclick="openQuoteGenerator(detailClientId)">📄 Quote</button>
       <button class="btn btn-primary" onclick="closeModal('detail-modal')">Done</button>
     </div>
   </div>
+</div>
+
+<!-- ─── QUOTE GENERATOR MODAL ─── -->
+<div class="modal-backdrop" id="quote-modal">
+  <div class="modal" style="max-width:720px;max-height:94vh">
+    <div class="modal-header">
+      <div class="modal-title">📄 Quote Generator</div>
+      <button class="modal-close" onclick="closeModal('quote-modal')">×</button>
+    </div>
+    <div class="modal-body" style="padding-bottom:8px">
+      <div id="quote-client-info" style="font-size:13px;color:var(--text2);margin-bottom:16px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)"></div>
+      <div id="quote-lenders-list"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addQuoteLender()" style="margin-top:8px;width:100%;border-style:dashed">+ Add Lender</button>
+    </div>
+    <div class="modal-footer" style="gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="closeModal('quote-modal')">Cancel</button>
+      <button class="btn btn-ghost" onclick="copyQuoteEmail()">📋 Copy Email</button>
+      <button class="btn btn-primary" onclick="printQuote()">🖨 Print / Save PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── QUOTE PRINT VIEW ─── -->
+<div id="quote-print-view" style="display:none">
+  <div id="quote-print-content"></div>
 </div>
 
 <!-- ─── CONFIRM MODAL ─── -->
@@ -1718,6 +1835,7 @@ let notionToken = '';
 let notionDbId = '';
 let notionSettledDbId = '';
 let notionGraveyardDbId = '';
+let notionExpensesDbId = '';
 let demoMode = false;
 let syncTimeout = null;
 let dragClient = null;
@@ -1737,6 +1855,7 @@ window.addEventListener('DOMContentLoaded', () => {
     notionDbId = cfg.dbId || '';
     notionSettledDbId = cfg.settledDbId || '';
     notionGraveyardDbId = cfg.graveyardDbId || '';
+    notionExpensesDbId = cfg.expensesDbId || '';
     if (notionToken) {
       startApp();
       loadFromNotion();
@@ -1778,6 +1897,7 @@ async function connectNotion() {
     const cfg = JSON.parse(localStorage.getItem('dealdesk_config') || '{}');
     notionSettledDbId = cfg.settledDbId || '';
     notionGraveyardDbId = cfg.graveyardDbId || '';
+    notionExpensesDbId = cfg.expensesDbId || '';
     setSynced('Notion synced');
   } catch(e) {
     setSyncError('Connection failed');
@@ -1810,6 +1930,7 @@ async function createNotionDatabase() {
       'Lender':      { rich_text: {} },
       'LoanAmount':  { rich_text: {} },
       'FinanceType': { rich_text: {} },
+      'LeadType':    { rich_text: {} },
       'Reminder':    { date: {} },
       'Notes':       { rich_text: {} },
       'Activity':    { rich_text: {} },
@@ -1855,12 +1976,25 @@ async function createNotionDatabase() {
     }
   });
 
+  // Create Lead Expenses database
+  const expensesRes = await notionFetch('POST', '/databases', {
+    parent: { type: 'page_id', page_id: parentPageId },
+    title: [{ type: 'text', text: { content: 'DealDesk — Lead Expenses' } }],
+    properties: {
+      'Name':      { title: {} },
+      'ClientId':  { rich_text: {} },
+      'LeadType':  { rich_text: {} },
+      'Amount':    { number: { format: 'dollar' } },
+      'AddedAt':   { date: {} },
+    }
+  });
+
   const config = JSON.parse(localStorage.getItem('dealdesk_config') || '{}');
   config.settledDbId = settledRes.id.replace(/-/g,'');
   config.graveyardDbId = graveyardRes.id.replace(/-/g,'');
-  localStorage.setItem('dealdesk_config', JSON.stringify(config));
-
-  localStorage.setItem('dealdesk_config', JSON.stringify({ token: notionToken, dbId: notionDbId, settledDbId: config.settledDbId, graveyardDbId: config.graveyardDbId }));
+  config.expensesDbId = expensesRes.id.replace(/-/g,'');
+  notionExpensesDbId = config.expensesDbId;
+  localStorage.setItem('dealdesk_config', JSON.stringify({ token: notionToken, dbId: notionDbId, settledDbId: config.settledDbId, graveyardDbId: config.graveyardDbId, expensesDbId: config.expensesDbId }));
   showToast('✅ Created DealDesk databases in Notion!');
 }
 
@@ -1900,7 +2034,7 @@ async function loadFromNotion(silent) {
       }
     }
 
-    await Promise.all([loadSettledFromNotion(), loadGraveyardFromNotion()]);
+    await Promise.all([loadSettledFromNotion(), loadGraveyardFromNotion(), loadExpensesFromNotion()]);
     setSynced('Synced');
   } catch(e) {
     setSyncError('Sync failed');
@@ -1940,6 +2074,7 @@ function pageToClient(page) {
       lender: getText(p['Lender']),
       loanAmount: getText(p['LoanAmount']),
       financeType: getText(p['FinanceType']) || 'Car Finance',
+      leadType: getText(p['LeadType']) || 'consumer',
       status: statusId,
       reminder: getDate(p['Reminder']),
       notes: getText(p['Notes']),
@@ -1965,6 +2100,7 @@ function clientToNotionProps(client) {
     'Lender':      { rich_text: [{ text: { content: client.lender || '' } }] },
     'LoanAmount':  { rich_text: [{ text: { content: client.loanAmount || '' } }] },
     'FinanceType': { rich_text: [{ text: { content: client.financeType || '' } }] },
+    'LeadType':    { rich_text: [{ text: { content: client.leadType || '' } }] },
     'Notes':       { rich_text: [{ text: { content: client.notes || '' } }] },
     'Activity':    { rich_text: [{ text: { content: JSON.stringify(client.activity || []).slice(0,2000) } }] },
     'LastContact': { date: client.lastContact ? { start: client.lastContact } : null },
@@ -2023,13 +2159,13 @@ function getDemoClients() {
   const daysAgo = (d) => new Date(now - d * 86400000).toISOString();
   const daysFromNow = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return x.toISOString().split('T')[0]; };
   return [
-    { id:'1', firstName:'Sarah', lastName:'Johnson', vehicle:'2024 Ford Ranger XLT', phone:'0412 345 678', email:'sarah@email.com', lender:'Westpac', loanAmount:'$58,000', financeType:'Car Finance', status:'lead', notes:'Referred by Mike Chen. Keen to move fast.', activity:[{type:'note',text:'Initial call — very keen, wants to settle by end of month',time:daysAgo(0.5)}], lastContact:daysAgo(0.5), spokeAt:daysAgo(0.5), noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
-    { id:'2', firstName:'Tom', lastName:'Bradley', vehicle:'2022 Toyota HiLux SR5', phone:'0423 456 789', email:'tom@email.com', lender:'Pepper Money', loanAmount:'$72,000', financeType:'Car Finance', status:'awaiting', notes:'Waiting on payslips and bank statements.', activity:[{type:'note',text:'App taken, sent doc checklist via email',time:daysAgo(3)}], lastContact:daysAgo(3), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
-    { id:'3', firstName:'Emma', lastName:'Wilson', vehicle:'Bobcat S650 Skid Steer', phone:'0434 567 890', email:'emma@biz.com', lender:'Macquarie', loanAmount:'$95,000', financeType:'Equipment Finance', status:'docsrec', notes:'ABN 3 years, strong financials.', activity:[{type:'note',text:'All docs received, reviewing now',time:daysAgo(1)}], lastContact:daysAgo(1), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
-    { id:'4', firstName:'Jake', lastName:'Morrison', vehicle:'2023 Mazda CX-5 Touring', phone:'0445 678 901', email:'jake@email.com', lender:'Liberty', loanAmount:'$41,000', financeType:'Car Finance', status:'submitted', notes:'Submitted to Liberty, awaiting response.', activity:[{type:'note',text:'Submitted to Liberty Financial',time:daysAgo(2)}], lastContact:daysAgo(2), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
-    { id:'5', firstName:'Lisa', lastName:'Park', vehicle:'2021 Isuzu D-Max LS-U', phone:'0456 789 012', email:'lisa@email.com', lender:'NAB', loanAmount:'$49,500', financeType:'Car Finance', status:'preapproved', notes:'Pre-approved at 6.49%. Waiting on client sign-off.', activity:[{type:'note',text:'Pre-approval received from NAB ✅',time:daysAgo(1)}], lastContact:daysAgo(1), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
-    { id:'6', firstName:'Marcus', lastName:'Chen', vehicle:'2020 Toyota Land Cruiser 200', phone:'0467 890 123', email:'marcus@email.com', lender:'Westpac', loanAmount:'$88,000', financeType:'Car Finance', status:'settled', notes:'Settled. Great client, referred 2 others.', activity:[{type:'note',text:'Deal settled 🎉',time:daysAgo(5)}], lastContact:daysAgo(5), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:true, notionId:null },
-    { id:'7', firstName:'Brooke', lastName:'Henley', vehicle:'2023 Kia Sportage GT', phone:'0478 901 234', email:'brooke@email.com', lender:'', loanAmount:'$38,000', financeType:'Car Finance', status:'future', notes:'Gets paid out from current car in ~6 weeks. Call back then.', activity:[{type:'note',text:'Not ready yet — car payout coming in ~6 weeks',time:daysAgo(1)}], lastContact:daysAgo(1), spokeAt:null, noAnswerAt:null, followUpDate:daysFromNow(18), reminder:null, settled:false, notionId:null },
+    { id:'1', firstName:'Sarah', lastName:'Johnson', vehicle:'2024 Ford Ranger XLT', phone:'0412 345 678', email:'sarah@email.com', lender:'Westpac', loanAmount:'$58,000', financeType:'Car Finance', leadType:'consumer', status:'lead', notes:'Referred by Mike Chen. Keen to move fast.', activity:[{type:'note',text:'Initial call — very keen, wants to settle by end of month',time:daysAgo(0.5)}], lastContact:daysAgo(0.5), spokeAt:daysAgo(0.5), noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
+    { id:'2', firstName:'Tom', lastName:'Bradley', vehicle:'2022 Toyota HiLux SR5', phone:'0423 456 789', email:'tom@email.com', lender:'Pepper Money', loanAmount:'$72,000', financeType:'Car Finance', leadType:'consumer', status:'awaiting', notes:'Waiting on payslips and bank statements.', activity:[{type:'note',text:'App taken, sent doc checklist via email',time:daysAgo(3)}], lastContact:daysAgo(3), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
+    { id:'3', firstName:'Emma', lastName:'Wilson', vehicle:'Bobcat S650 Skid Steer', phone:'0434 567 890', email:'emma@biz.com', lender:'Macquarie', loanAmount:'$95,000', financeType:'Equipment Finance', leadType:'commercial', status:'docsrec', notes:'ABN 3 years, strong financials.', activity:[{type:'note',text:'All docs received, reviewing now',time:daysAgo(1)}], lastContact:daysAgo(1), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
+    { id:'4', firstName:'Jake', lastName:'Morrison', vehicle:'2023 Mazda CX-5 Touring', phone:'0445 678 901', email:'jake@email.com', lender:'Liberty', loanAmount:'$41,000', financeType:'Car Finance', leadType:'free', status:'submitted', notes:'Submitted to Liberty, awaiting response.', activity:[{type:'note',text:'Submitted to Liberty Financial',time:daysAgo(2)}], lastContact:daysAgo(2), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
+    { id:'5', firstName:'Lisa', lastName:'Park', vehicle:'2021 Isuzu D-Max LS-U', phone:'0456 789 012', email:'lisa@email.com', lender:'NAB', loanAmount:'$49,500', financeType:'Car Finance', leadType:'consumer', status:'preapproved', notes:'Pre-approved at 6.49%. Waiting on client sign-off.', activity:[{type:'note',text:'Pre-approval received from NAB ✅',time:daysAgo(1)}], lastContact:daysAgo(1), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:false, notionId:null },
+    { id:'6', firstName:'Marcus', lastName:'Chen', vehicle:'2020 Toyota Land Cruiser 200', phone:'0467 890 123', email:'marcus@email.com', lender:'Westpac', loanAmount:'$88,000', financeType:'Car Finance', leadType:'consumer', status:'settled', notes:'Settled. Great client, referred 2 others.', activity:[{type:'note',text:'Deal settled 🎉',time:daysAgo(5)}], lastContact:daysAgo(5), spokeAt:null, noAnswerAt:null, followUpDate:null, reminder:null, settled:true, notionId:null },
+    { id:'7', firstName:'Brooke', lastName:'Henley', vehicle:'2023 Kia Sportage GT', phone:'0478 901 234', email:'brooke@email.com', lender:'', loanAmount:'$38,000', financeType:'Car Finance', leadType:'consumer', status:'future', notes:'Gets paid out from current car in ~6 weeks. Call back then.', activity:[{type:'note',text:'Not ready yet — car payout coming in ~6 weeks',time:daysAgo(1)}], lastContact:daysAgo(1), spokeAt:null, noAnswerAt:null, followUpDate:daysFromNow(18), reminder:null, settled:false, notionId:null },
   ];
 }
 
@@ -3482,16 +3618,56 @@ const FIXED_EXPENSES = 850;
 
 function logLeadExpense(client) {
   const leadCost = LEAD_COSTS[client.leadType] || 0;
-  if (leadCost === 0) return; // free leads don't cost anything
-  const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
-  expenses.push({
+  if (leadCost === 0) return;
+  const expense = {
     clientId: client.id,
     name: `${client.firstName} ${client.lastName}`,
     leadType: client.leadType,
     amount: leadCost,
     addedAt: new Date().toISOString(),
-  });
+  };
+  const expenses = JSON.parse(localStorage.getItem('dealdesk_expenses') || '[]');
+  expenses.push(expense);
   localStorage.setItem('dealdesk_expenses', JSON.stringify(expenses));
+  saveExpenseToNotion(expense);
+}
+
+async function saveExpenseToNotion(expense) {
+  if (demoMode || !notionExpensesDbId) return;
+  try {
+    const dbId = formatDbId(notionExpensesDbId);
+    await notionFetch('POST', '/pages', {
+      parent: { database_id: dbId },
+      properties: {
+        'Name':     { title: [{ text: { content: expense.name } }] },
+        'ClientId': { rich_text: [{ text: { content: expense.clientId || '' } }] },
+        'LeadType': { rich_text: [{ text: { content: expense.leadType || '' } }] },
+        'Amount':   { number: expense.amount || 0 },
+        'AddedAt':  { date: { start: expense.addedAt } },
+      }
+    });
+  } catch(e) { console.error('Notion expense save error:', e); }
+}
+
+async function loadExpensesFromNotion() {
+  if (demoMode || !notionExpensesDbId) return;
+  try {
+    const dbId = formatDbId(notionExpensesDbId);
+    const res = await notionFetch('POST', `/databases/${dbId}/query`, { page_size: 200 });
+    const expenses = res.results.map(p => {
+      const props = p.properties;
+      return {
+        clientId: props['ClientId']?.rich_text?.[0]?.plain_text || '',
+        name: props['Name']?.title?.[0]?.plain_text || '',
+        leadType: props['LeadType']?.rich_text?.[0]?.plain_text || 'consumer',
+        amount: props['Amount']?.number || 0,
+        addedAt: props['AddedAt']?.date?.start || p.created_time,
+      };
+    });
+    if (expenses.length > 0) {
+      localStorage.setItem('dealdesk_expenses', JSON.stringify(expenses));
+    }
+  } catch(e) { console.error('Notion expenses load error:', e); }
 }
 
 function getLeadExpensesForPeriod(start, end) {
@@ -3913,7 +4089,261 @@ function renderStatsTab() {
 }
 
 // ═══════════════════════════════════════════
-// TOAST
+// QUOTE GENERATOR
+// ═══════════════════════════════════════════
+let quoteClientId = null;
+let quoteLenders = [];
+
+function openQuoteGenerator(clientId) {
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+  quoteClientId = clientId;
+  closeModal('detail-modal');
+
+  // Pre-fill client info
+  document.getElementById('quote-client-info').innerHTML = `
+    <strong>${client.firstName} ${client.lastName}</strong>
+    ${client.vehicle ? ` &nbsp;·&nbsp; ${client.vehicle}` : ''}
+    ${client.loanAmount ? ` &nbsp;·&nbsp; ${client.loanAmount}` : ''}
+  `;
+
+  // Reset lenders to 1 blank
+  quoteLenders = [{ id: 1, featured: true, lender: 'Lender 1', amount: client.loanAmount?.replace(/[^0-9.]/g,'') || '', rate: '', term: '60', monthly: '', weekly: '', exitFee: '', exitFeeType: 'fixed' }];
+  renderQuoteLenders();
+  openModal('quote-modal');
+}
+
+function renderQuoteLenders() {
+  const list = document.getElementById('quote-lenders-list');
+  list.innerHTML = '';
+  quoteLenders.forEach((l, i) => {
+    const card = document.createElement('div');
+    card.className = `quote-lender-card${l.featured ? ' featured' : ''}`;
+    card.innerHTML = `
+      <div class="quote-lender-header">
+        <div class="quote-lender-num">Lender ${i + 1}</div>
+        <button class="quote-featured-toggle ${l.featured ? 'on' : ''}" onclick="toggleQuoteFeatured(${i})">
+          ${l.featured ? '★ Featured' : '☆ Feature this'}
+        </button>
+        <button class="quote-remove-btn" onclick="removeQuoteLender(${i})" title="Remove">×</button>
+      </div>
+      <div class="quote-fields">
+        <div class="quote-field">
+          <label>Loan Amount</label>
+          <input type="number" placeholder="45000" value="${l.amount}" oninput="updateQuoteLender(${i},'amount',this.value)">
+        </div>
+        <div class="quote-field">
+          <label>Interest Rate %</label>
+          <input type="number" placeholder="6.99" step="0.01" value="${l.rate}" oninput="updateQuoteLender(${i},'rate',this.value)">
+        </div>
+        <div class="quote-field">
+          <label>Loan Term (months)</label>
+          <select oninput="updateQuoteLender(${i},'term',this.value)">
+            ${[24,36,48,60,72,84].map(t => `<option value="${t}" ${l.term==t?'selected':''}>${t} months (${t/12}yr)</option>`).join('')}
+          </select>
+        </div>
+        <div class="quote-field">
+          <label>Monthly Repayment</label>
+          <input type="number" placeholder="Auto-calculate" step="0.01" value="${l.monthly}" oninput="updateQuoteLender(${i},'monthly',this.value)">
+        </div>
+        <div class="quote-field">
+          <label>Weekly Repayment</label>
+          <input type="number" placeholder="Auto-calculate" step="0.01" value="${l.weekly}" oninput="updateQuoteLender(${i},'weekly',this.value)">
+        </div>
+        <div class="quote-field">
+          <label>Early Exit Fee</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" placeholder="0" step="0.01" value="${l.exitFee}" oninput="updateQuoteLender(${i},'exitFee',this.value)" style="flex:1">
+            <select oninput="updateQuoteLender(${i},'exitFeeType',this.value)" style="width:70px">
+              <option value="fixed" ${l.exitFeeType=='fixed'?'selected':''}>$</option>
+              <option value="percent" ${l.exitFeeType=='percent'?'selected':'}>%</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function updateQuoteLender(i, field, value) {
+  quoteLenders[i][field] = value;
+  // Auto-calculate monthly/weekly from amount+rate+term
+  const l = quoteLenders[i];
+  if (field === 'amount' || field === 'rate' || field === 'term') {
+    const P = parseFloat(l.amount);
+    const r = parseFloat(l.rate) / 100 / 12;
+    const n = parseInt(l.term);
+    if (P && r && n) {
+      const monthly = r === 0 ? P/n : P * r * Math.pow(1+r,n) / (Math.pow(1+r,n)-1);
+      quoteLenders[i].monthly = monthly.toFixed(2);
+      quoteLenders[i].weekly = (monthly * 12 / 52).toFixed(2);
+      renderQuoteLenders();
+    }
+  }
+}
+
+function toggleQuoteFeatured(i) {
+  quoteLenders[i].featured = !quoteLenders[i].featured;
+  renderQuoteLenders();
+}
+
+function removeQuoteLender(i) {
+  if (quoteLenders.length <= 1) return;
+  quoteLenders.splice(i, 1);
+  renderQuoteLenders();
+}
+
+function addQuoteLender() {
+  const n = quoteLenders.length + 1;
+  const prev = quoteLenders[quoteLenders.length - 1];
+  quoteLenders.push({ id: n, featured: false, lender: `Lender ${n}`, amount: prev?.amount || '', rate: '', term: prev?.term || '60', monthly: '', weekly: '', exitFee: '', exitFeeType: 'fixed' });
+  renderQuoteLenders();
+}
+
+function buildQuoteHTML(client) {
+  const featured = quoteLenders.filter(l => l.featured);
+  const others = quoteLenders.filter(l => !l.featured);
+  const fmt = n => n ? parseFloat(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const fmtAmt = n => n ? '$' + parseFloat(n).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
+  const today = new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' });
+  const lenderLabel = (l, i) => `Lender ${quoteLenders.indexOf(l) + 1}`;
+
+  return `
+    <div class="qpv-page">
+      <div class="qpv-header">
+        <div>
+          <div class="qpv-logo">Latem Finance</div>
+          <div class="qpv-broker">Broker: Zach Salmi</div>
+        </div>
+        <div class="qpv-date">
+          <div>Finance Proposal</div>
+          <div style="margin-top:4px">${today}</div>
+        </div>
+      </div>
+
+      <div class="qpv-client-block">
+        <div class="qpv-client-name">${client.firstName} ${client.lastName}</div>
+        <div class="qpv-client-sub">${client.vehicle || ''}${client.loanAmount ? ' &nbsp;·&nbsp; Loan Amount: ' + client.loanAmount : ''}</div>
+      </div>
+
+      ${featured.length > 0 ? `
+      <div class="qpv-section-title">★ Recommended Options</div>
+      <div class="qpv-featured-grid">
+        ${featured.map((l, i) => `
+          <div class="qpv-featured-card">
+            <div class="qpv-card-lender">Lender ${quoteLenders.indexOf(l) + 1}</div>
+            <div class="qpv-card-row"><span class="qpv-card-label">Loan Amount</span><span class="qpv-card-value">${fmtAmt(l.amount)}</span></div>
+            <div class="qpv-card-row"><span class="qpv-card-label">Interest Rate</span><span class="qpv-card-value">${l.rate ? l.rate + '%' : '—'}</span></div>
+            <div class="qpv-card-row"><span class="qpv-card-label">Loan Term</span><span class="qpv-card-value">${l.term} months</span></div>
+            <div class="qpv-card-row"><span class="qpv-card-label">Weekly Repayment</span><span class="qpv-card-value">${l.weekly ? '$' + fmt(l.weekly) : '—'}</span></div>
+            <div class="qpv-card-row"><span class="qpv-card-label">Early Exit Fee</span><span class="qpv-card-value">${l.exitFee ? (l.exitFeeType === 'fixed' ? '$' + fmt(l.exitFee) : l.exitFee + '%') : 'Nil'}</span></div>
+            <div class="qpv-card-row"><span class="qpv-card-label">Monthly Repayment</span><span class="qpv-card-value">$${fmt(l.monthly)}</span></div>
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+      ${others.length > 0 ? `
+      <div class="qpv-section-title" style="margin-top:${featured.length > 0 ? '8px' : '0'}">Other Options Considered</div>
+      <table class="qpv-other-table">
+        <thead>
+          <tr>
+            <th>Lender</th>
+            <th>Amount</th>
+            <th>Rate</th>
+            <th>Term</th>
+            <th>Monthly</th>
+            <th>Weekly</th>
+            <th>Exit Fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${others.map(l => `
+            <tr>
+              <td>Lender ${quoteLenders.indexOf(l) + 1}</td>
+              <td>${fmtAmt(l.amount)}</td>
+              <td>${l.rate ? l.rate + '%' : '—'}</td>
+              <td>${l.term} mo</td>
+              <td>${l.monthly ? '$' + fmt(l.monthly) : '—'}</td>
+              <td>${l.weekly ? '$' + fmt(l.weekly) : '—'}</td>
+              <td>${l.exitFee ? (l.exitFeeType === 'fixed' ? '$' + fmt(l.exitFee) : l.exitFee + '%') : 'Nil'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>` : ''}
+
+      <div class="qpv-footer">
+        This proposal is indicative only and subject to lender approval. Prepared by Latem Finance — Zach Salmi.
+        Repayments are estimates and may vary based on final loan terms.
+      </div>
+    </div>
+  `;
+}
+
+function printQuote() {
+  const client = clients.find(c => c.id === quoteClientId);
+  if (!client) return;
+  const html = buildQuoteHTML(client);
+  document.getElementById('quote-print-content').innerHTML = html;
+  document.getElementById('quote-print-view').style.display = 'block';
+  window.print();
+  setTimeout(() => {
+    document.getElementById('quote-print-view').style.display = 'none';
+  }, 1000);
+}
+
+function copyQuoteEmail() {
+  const client = clients.find(c => c.id === quoteClientId);
+  if (!client) return;
+  const featured = quoteLenders.filter(l => l.featured);
+  const others = quoteLenders.filter(l => !l.featured);
+  const fmt = n => n ? parseFloat(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const today = new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' });
+
+  let text = `Hi ${client.firstName},\n\nPlease find below your finance proposal prepared by Latem Finance.\n\n`;
+  text += `Client: ${client.firstName} ${client.lastName}\n`;
+  if (client.vehicle) text += `Vehicle: ${client.vehicle}\n`;
+  text += `Date: ${today}\n\n`;
+
+  if (featured.length > 0) {
+    text += `★ RECOMMENDED OPTIONS\n${'─'.repeat(40)}\n\n`;
+    featured.forEach((l, i) => {
+      text += `Lender ${quoteLenders.indexOf(l) + 1}\n`;
+      if (l.amount) text += `  Loan Amount:      $${fmt(l.amount)}\n`;
+      if (l.rate)   text += `  Interest Rate:    ${l.rate}% p.a.\n`;
+      if (l.term)   text += `  Loan Term:        ${l.term} months\n`;
+      if (l.monthly) text += `  Monthly Repayment: $${fmt(l.monthly)}\n`;
+      if (l.weekly)  text += `  Weekly Repayment:  $${fmt(l.weekly)}\n`;
+      text += `  Early Exit Fee:   ${l.exitFee ? (l.exitFeeType === 'fixed' ? '$' + fmt(l.exitFee) : l.exitFee + '%') : 'Nil'}\n\n`;
+    });
+  }
+
+  if (others.length > 0) {
+    text += `OTHER OPTIONS CONSIDERED\n${'─'.repeat(40)}\n\n`;
+    others.forEach(l => {
+      text += `Lender ${quoteLenders.indexOf(l) + 1}`;
+      if (l.amount) text += ` | $${fmt(l.amount)}`;
+      if (l.rate)   text += ` | ${l.rate}%`;
+      if (l.term)   text += ` | ${l.term}mo`;
+      if (l.monthly) text += ` | $${fmt(l.monthly)}/mo`;
+      if (l.weekly)  text += ` | $${fmt(l.weekly)}/wk`;
+      text += ` | Exit: ${l.exitFee ? (l.exitFeeType === 'fixed' ? '$' + fmt(l.exitFee) : l.exitFee + '%') : 'Nil'}\n`;
+    });
+    text += '\n';
+  }
+
+  text += `This proposal is indicative only and subject to lender approval.\n\nKind regards,\nZach Salmi\nLatem Finance`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✓ Quote copied to clipboard');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('✓ Quote copied to clipboard');
+  });
+}
 // ═══════════════════════════════════════════
 let toastTimeout;
 function showToast(msg, duration) {
